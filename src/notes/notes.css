@@ -1,0 +1,443 @@
+:root {
+  color-scheme: light;
+  --bg: #ffe87a;
+  --bg-alt: #ffc7d1;
+  --sheet: #fffdf6;
+  --panel: #ffffff;
+  --ink: #121212;
+  --muted: #3d3d3d;
+  --accent: #00a878;
+  --line: #111111;
+  --shadow: 6px 6px 0 #111111;
+  --shadow-sm: 4px 4px 0 #111111;
+  --split-btn-bg: #ffffff;
+  --title-chip-bg: #cce8ff;
+  --title-chip-ink: #111111;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Trebuchet MS", "Avenir Next", "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at 15% 10%, var(--bg-alt) 0 14%, transparent 15%),
+    radial-gradient(circle at 85% 85%, #b8f3ff 0 11%, transparent 12%),
+    var(--bg);
+  color: var(--ink);
+}
+
+body.bg-floating {
+  --split-btn-bg: #cbf8ea;
+  --title-chip-bg: #bdeeff;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.85) 0 10%, transparent 12%),
+    radial-gradient(circle at 75% 18%, rgba(193, 231, 255, 0.95) 0 15%, transparent 17%),
+    radial-gradient(circle at 65% 75%, rgba(255, 216, 243, 0.9) 0 14%, transparent 16%),
+    linear-gradient(180deg, #9fe4ff 0%, #d9f6ff 48%, #f5fdff 100%);
+}
+
+body.bg-midnight {
+  --split-btn-bg: #d7e6ff;
+  --title-chip-bg: #d7ccff;
+  background:
+    radial-gradient(circle at 20% 15%, rgba(160, 200, 255, 0.25) 0 8%, transparent 10%),
+    radial-gradient(circle at 78% 22%, rgba(185, 140, 255, 0.22) 0 12%, transparent 14%),
+    radial-gradient(circle at 55% 75%, rgba(120, 175, 255, 0.18) 0 16%, transparent 19%),
+    linear-gradient(180deg, #07122b 0%, #111f45 52%, #1d2957 100%);
+}
+
+body.bg-fire {
+  --split-btn-bg: #ffe1c3;
+  --title-chip-bg: #ffd8b3;
+  background:
+    radial-gradient(circle at 18% 80%, rgba(255, 230, 166, 0.45) 0 16%, transparent 19%),
+    radial-gradient(circle at 46% 88%, rgba(255, 130, 71, 0.5) 0 20%, transparent 22%),
+    radial-gradient(circle at 75% 78%, rgba(239, 68, 68, 0.45) 0 17%, transparent 20%),
+    linear-gradient(180deg, #2c0d0a 0%, #5d1408 45%, #9f280a 100%);
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 28px 16px;
+  border-bottom: 3px solid var(--line);
+  background: #fff;
+  box-shadow: 0 6px 0 #111111;
+}
+
+h1 {
+  margin: 0 0 6px;
+  font-size: 24px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+
+.btn {
+  border: 3px solid var(--line);
+  background: var(--accent);
+  color: var(--ink);
+  padding: 10px 16px;
+  border-radius: 14px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: var(--shadow-sm);
+  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+}
+
+.btn:active {
+  transform: translate(3px, 3px);
+  box-shadow: 1px 1px 0 #111111;
+}
+
+.btn.ghost {
+  background: #ffffff;
+  color: var(--ink);
+}
+
+main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 24px;
+  padding: 24px 28px;
+}
+
+.sheet {
+  position: relative;
+  background: var(--sheet);
+  border-radius: 18px;
+  border: 3px solid var(--line);
+  min-height: calc(100vh - 140px);
+  padding: 24px 28px;
+  box-shadow: var(--shadow);
+}
+
+.sheet.drop-active {
+  outline: 4px dashed #111111;
+  outline-offset: -12px;
+}
+
+#editor {
+  width: 100%;
+  min-height: calc(100vh - 220px);
+  border: none;
+  outline: none;
+  display: grid;
+  gap: 20px;
+  font-family: "Trebuchet MS", "Avenir Next", "Segoe UI", sans-serif;
+  font-size: 18px;
+  line-height: 1.6;
+  color: var(--ink);
+  background: transparent;
+  white-space: normal;
+}
+
+.note-section {
+  min-height: 180px;
+  border: 3px solid #111111;
+  border-radius: 16px;
+  box-shadow: 4px 4px 0 #111111;
+  background: #fffdf6;
+  padding: 18px 20px;
+  outline: none;
+  white-space: pre-wrap;
+}
+
+.note-section:empty::before {
+  content: attr(data-placeholder);
+  color: #777777;
+}
+
+.note-inline-image {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border: 2px solid #111111;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.note-image-wrap {
+  position: relative;
+  display: block;
+  width: min(320px, 100%);
+  min-width: 140px;
+  max-width: 100%;
+  resize: none;
+  overflow: hidden;
+  border: 3px solid #111111;
+  border-radius: 12px;
+  box-shadow: 4px 4px 0 #111111;
+  background: #ffffff;
+  padding: 8px;
+  margin: 16px 0;
+}
+
+.note-image-wrap.align-left {
+  float: left;
+  margin: 16px 18px 16px 0;
+}
+
+.note-image-wrap.align-right {
+  float: right;
+  margin: 16px 0 16px 18px;
+}
+
+.note-image-wrap.align-line {
+  float: none;
+  clear: both;
+}
+
+.note-image-wrap.selected {
+  outline: 3px solid #00a878;
+  outline-offset: 2px;
+}
+
+.resize-handle {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  background: #00a878;
+  border: 2px solid #111111;
+  border-radius: 999px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.note-image-wrap:hover .resize-handle,
+.note-image-wrap.selected .resize-handle {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.resize-handle.nw {
+  top: -8px;
+  left: -8px;
+  cursor: nwse-resize;
+}
+
+.resize-handle.ne {
+  top: -8px;
+  right: -8px;
+  cursor: nesw-resize;
+}
+
+.resize-handle.sw {
+  bottom: -8px;
+  left: -8px;
+  cursor: nesw-resize;
+}
+
+.resize-handle.se {
+  bottom: -8px;
+  right: -8px;
+  cursor: nwse-resize;
+}
+
+.image-controls {
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  border-top: 2px solid #111111;
+  background: #f6f6f6;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.note-image-wrap:hover .image-controls,
+.note-image-wrap.selected .image-controls {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.image-control-btn {
+  border: 2px solid #111111;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #111111;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 7px;
+  cursor: pointer;
+}
+
+.image-control-btn.danger {
+  background: #ffd6df;
+  color: #8b0b2d;
+}
+
+aside {
+  position: sticky;
+  top: 20px;
+  height: calc(100vh - 140px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 3px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  box-shadow: var(--shadow);
+  align-content: start;
+  min-height: 0;
+}
+
+.panel .btn {
+  width: 100%;
+}
+
+.section-tools {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.section-tool-btn {
+  margin-top: 2px;
+  width: 100%;
+  min-width: 0;
+  height: 46px;
+  padding: 0;
+  font-size: 22px;
+  line-height: 1;
+  background: var(--split-btn-bg);
+}
+
+.note-title-chip {
+  display: inline-block;
+  margin: 2px 0 12px;
+  padding: 4px 8px 5px;
+  border: 3px solid #111111;
+  border-radius: 14px;
+  background: var(--title-chip-bg);
+  color: var(--title-chip-ink);
+  box-shadow: 3px 3px 0 #111111;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+}
+
+.note-title-body {
+  margin: 4px 0 0 16px;
+  min-height: 1.4em;
+}
+
+.section-tool-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: 2px 2px 0 #111111;
+}
+
+
+.scene-panel {
+  background: #ffffff;
+  border: 3px solid var(--line);
+  border-radius: 16px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  box-shadow: var(--shadow-sm);
+  margin-top: auto;
+}
+
+.stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 13px;
+  gap: 12px;
+}
+
+
+.label {
+  color: var(--muted);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.hint {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0;
+  font-weight: 600;
+}
+
+.scene-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.scene-pill {
+  border: 3px solid var(--line);
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 800;
+  padding: 8px 6px;
+  cursor: pointer;
+  box-shadow: 3px 3px 0 #111111;
+}
+
+.scene-pill.active {
+  background: #c4ffe2;
+}
+
+.scene-pill:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 #111111;
+}
+
+@media (max-width: 900px) {
+  header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    box-shadow: 0 4px 0 #111111;
+  }
+
+  main {
+    grid-template-columns: 1fr;
+  }
+
+  aside {
+    position: static;
+    height: auto;
+    display: grid;
+  }
+
+  .sheet,
+  .panel,
+  .scene-panel {
+    box-shadow: 4px 4px 0 #111111;
+  }
+
+  textarea {
+    height: calc(100vh - 260px);
+  }
+}
