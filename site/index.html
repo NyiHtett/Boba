@@ -505,11 +505,52 @@
     }
 
     /* ── Demo video ── */
-    .demo-video {
+    .demo-wrap {
       margin-top: 40px;
       position: relative;
       width: 100%;
       max-width: 800px;
+    }
+
+    .demo-ambient {
+      position: absolute;
+      inset: -40px;
+      z-index: 0;
+      border-radius: 40px;
+      background: conic-gradient(
+        from 0deg,
+        rgba(91, 111, 199, 0.35),
+        rgba(140, 120, 200, 0.3),
+        rgba(232, 93, 117, 0.3),
+        rgba(240, 199, 94, 0.3),
+        rgba(91, 111, 199, 0.35)
+      );
+      filter: blur(50px);
+      animation: ambient-rotate 8s linear infinite;
+      opacity: 0.7;
+    }
+
+    @keyframes ambient-rotate {
+      0%   { transform: rotate(0deg) scale(1); }
+      50%  { transform: rotate(180deg) scale(1.05); }
+      100% { transform: rotate(360deg) scale(1); }
+    }
+
+    body.fire .demo-ambient {
+      background: conic-gradient(
+        from 0deg,
+        rgba(240, 160, 30, 0.4),
+        rgba(224, 136, 58, 0.35),
+        rgba(200, 80, 40, 0.3),
+        rgba(245, 200, 48, 0.35),
+        rgba(240, 160, 30, 0.4)
+      );
+    }
+
+    .demo-video {
+      position: relative;
+      z-index: 1;
+      width: 100%;
       aspect-ratio: 16 / 9;
       border: 3px solid var(--line);
       border-radius: 18px;
@@ -969,10 +1010,13 @@
   <!-- Demo -->
   <section id="demo">
     <div class="container">
-      <p class="section-label reveal">See it in action</p>
-      <h2 class="section-title reveal">A quick look at Boba.</h2>
-      <div class="demo-video reveal">
-        <iframe src="https://www.youtube.com/embed/iVoO4hX2PNU" title="Boba Demo" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+      <p class="section-label reveal">Sneak peek</p>
+      <h2 class="section-title reveal">See Boba in action.</h2>
+      <div class="demo-wrap reveal">
+        <div class="demo-ambient"></div>
+        <div class="demo-video">
+          <iframe src="https://www.youtube.com/embed/iVoO4hX2PNU" title="Boba Demo" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+        </div>
       </div>
     </div>
   </section>
