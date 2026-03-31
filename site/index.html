@@ -233,6 +233,26 @@
       opacity: 0.8;
     }
 
+    .moon-hint {
+      position: absolute;
+      top: 50%;
+      right: calc(100% + 12px);
+      transform: translateY(-50%);
+      font-family: "Fredoka", sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      color: rgba(240, 230, 200, 0.6);
+      white-space: nowrap;
+      animation: nudge 2s ease-in-out infinite;
+    }
+
+    @keyframes nudge {
+      0%, 100% { transform: translateY(-50%) translateX(0); }
+      50%      { transform: translateY(-50%) translateX(-4px); }
+    }
+
+    body.fire .moon-hint { color: rgba(240, 199, 94, 0.6); }
+
     .moon::after {
       content: "";
       position: absolute;
@@ -873,7 +893,9 @@
   <div class="starfield"></div>
   <div class="stars-layer"></div>
   <div class="flames"></div>
-  <div class="moon" title="Click to toggle theme"></div>
+  <div class="moon" title="Click to toggle theme">
+    <span class="moon-hint">click me!</span>
+  </div>
 
   <!-- Nav -->
   <nav>
