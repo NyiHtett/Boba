@@ -8,6 +8,8 @@ import { checkProStatus, openPaymentPage, openTrialPage } from "../shared/paywal
 import BobaRunner from "./BobaRunner";
 import BobaMascot from "./BobaMascot";
 import BobaQuiz from "./BobaQuiz";
+import katex from "katex";
+import "katex/dist/katex.min.css";
 
 function getParams() {
   const p = new URLSearchParams(window.location.search);
@@ -33,12 +35,12 @@ function stripImages(html) {
   return normalizeHtml(d.innerHTML);
 }
 function stripInlineStyles(el) {
-  const keep = new Set(["note-section", "note-image-wrap", "note-inline-image", "note-title-chip", "image-controls", "image-control-btn", "resize-handle"]);
+  const keep = new Set(["note-section", "note-image-wrap", "note-inline-image", "note-title-chip", "image-controls", "image-control-btn", "resize-handle", "note-math-chip"]);
   const unwrapTags = new Set(["B", "STRONG", "I", "EM", "U", "FONT", "MARK", "S", "STRIKE"]);
   // Unwrap formatting tags (replace with their text content)
   for (const tag of unwrapTags) {
     el.querySelectorAll(tag).forEach((node) => {
-      if (node.closest(".note-image-wrap, .note-title-chip, .image-controls")) return;
+      if (node.closest(".note-image-wrap, .note-title-chip, .image-controls, .note-math-chip")) return;
       const parent = node.parentNode;
       while (node.firstChild) parent.insertBefore(node.firstChild, node);
       parent.removeChild(node);
@@ -53,6 +55,106 @@ function stripInlineStyles(el) {
     node.removeAttribute("size");
   });
 }
+// ── Math equation helpers ──
+function mathToLatex(input) {
+  let s = input.trim();
+  // sqrt() and root() → \sqrt{}
+  s = s.replace(/(?:sqrt|root)\(([^()]*(?:\([^()]*\)[^()]*)*)\)/g, (_, inner) => `\\sqrt{${mathToLatex(inner)}}`);
+  // Handle fraction: (numerator)/(denominator)
+  // Find balanced parens around /
+  s = replaceFractions(s);
+  // ^(expr) → ^{expr}  and ^single → ^{single}
+  s = s.replace(/\^(\([^()]*(?:\([^()]*\)[^()]*)*\))/g, (_, group) => `^{${mathToLatex(group.slice(1, -1))}}`);
+  s = s.replace(/\^([a-zA-Z0-9])/g, "^{$1}");
+  // _(expr) → _{expr}
+  s = s.replace(/_(\([^()]*(?:\([^()]*\)[^()]*)*\))/g, (_, group) => `_{${mathToLatex(group.slice(1, -1))}}`);
+  s = s.replace(/_([a-zA-Z0-9])/g, "_{$1}");
+  return s;
+}
+
+function replaceFractions(s) {
+  let result = "";
+  let i = 0;
+  while (i < s.length) {
+    if (s[i] === "/" && i > 0) {
+      // ── Find numerator (walk back) ──
+      let nb = i - 1;
+      while (nb >= 0 && s[nb] === " ") nb--;
+      let numStart = -1, numInner = "";
+      if (nb >= 0 && s[nb] === ")") {
+        // Balanced parens group
+        let depth = 0;
+        for (let j = nb; j >= 0; j--) {
+          if (s[j] === ")") depth++;
+          else if (s[j] === "(") { depth--; if (depth === 0) { numStart = j; break; } }
+        }
+        if (numStart >= 0) numInner = s.slice(numStart + 1, nb);
+      } else if (nb >= 0) {
+        // Plain token: word chars, digits, dots (e.g. log2, x, 3.14)
+        let j = nb;
+        while (j >= 0 && /[a-zA-Z0-9._]/.test(s[j])) j--;
+        numStart = j + 1;
+        if (numStart <= nb) numInner = s.slice(numStart, nb + 1);
+        else numStart = -1;
+      }
+
+      // ── Find denominator (walk forward) ──
+      let da = i + 1;
+      while (da < s.length && s[da] === " ") da++;
+      let denEnd = -1, denInner = "";
+      if (da < s.length && s[da] === "(") {
+        // Balanced parens group
+        let depth = 0;
+        for (let j = da; j < s.length; j++) {
+          if (s[j] === "(") depth++;
+          else if (s[j] === ")") { depth--; if (depth === 0) { denEnd = j; break; } }
+        }
+        if (denEnd >= 0) denInner = s.slice(da + 1, denEnd);
+      } else if (da < s.length && /[a-zA-Z0-9]/.test(s[da])) {
+        // Plain token
+        let j = da;
+        while (j < s.length && /[a-zA-Z0-9._]/.test(s[j])) j++;
+        denEnd = j - 1;
+        denInner = s.slice(da, j);
+      }
+
+      if (numStart >= 0 && denEnd >= 0) {
+        const charsToRemove = i - numStart;
+        result = result.slice(0, result.length - charsToRemove);
+        result += `\\frac{${mathToLatex(numInner)}}{${mathToLatex(denInner)}}`;
+        i = denEnd + 1;
+        continue;
+      }
+    }
+    result += s[i];
+    i++;
+  }
+  return result;
+}
+
+function createMathChip(src) {
+  const chip = document.createElement("span");
+  chip.className = "note-math-chip";
+  chip.contentEditable = "false";
+  chip.setAttribute("data-math", src);
+  try {
+    katex.render(mathToLatex(src), chip, { throwOnError: false, displayMode: false });
+  } catch {
+    chip.textContent = src;
+  }
+  return chip;
+}
+
+function hydrateMathChip(chip) {
+  const src = chip.getAttribute("data-math") || "";
+  chip.contentEditable = "false";
+  try {
+    katex.render(mathToLatex(src), chip, { throwOnError: false, displayMode: false });
+  } catch {
+    chip.textContent = src;
+  }
+}
+
 function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
 
 function fileToDataUrl(file) {
@@ -120,6 +222,7 @@ export default function App() {
     if (!el) return "";
     const clone = el.cloneNode(true);
     clone.querySelectorAll(".image-controls").forEach((n) => n.remove());
+    clone.querySelectorAll(".note-math-chip").forEach((c) => c.removeAttribute("contenteditable"));
     clone.querySelectorAll(".note-section").forEach((s) => s.classList.remove("quiz-active"));
     clone.querySelectorAll(".note-image-wrap").forEach((w) => {
       w.classList.remove("selected");
@@ -134,6 +237,7 @@ export default function App() {
     if (!el) return "";
     const clone = el.cloneNode(true);
     clone.querySelectorAll(".image-controls").forEach((n) => n.remove());
+    clone.querySelectorAll(".note-math-chip").forEach((c) => c.replaceWith(document.createTextNode(c.getAttribute("data-math") || "")));
     clone.querySelectorAll(".note-image-wrap").forEach((w) => w.replaceWith(document.createTextNode(" ")));
     return (clone.textContent || "").replace(/\s+/g, " ").trim();
   }, []);
@@ -367,6 +471,7 @@ export default function App() {
           mainSec.appendChild(node);
         }
         decorateImages();
+        hydrateMathChips(el);
         stripInlineStyles(el);
         lastSavedHtml.current = serializeHtml();
         lastSnapText.current = (entry.history?.length ? entry.history[entry.history.length - 1].text : "") || "";
@@ -385,6 +490,7 @@ export default function App() {
           const newHtml = normalizeHtml(entry.html || textToHtml(entry.text || ""));
           if (newHtml !== serializeHtml()) {
             editorRef.current.innerHTML = entry.html || textToHtml(entry.text || "");
+            hydrateMathChips(editorRef.current);
           }
           updateStats(getPlainText(), entry.history || []);
         }
@@ -400,11 +506,44 @@ export default function App() {
     document.body.classList.add(`bg-${bgMode}`);
   }, [bgMode]);
 
+  // ── Auto-format $...$ math ──
+  const tryAutoMath = useCallback(() => {
+    const sel = window.getSelection();
+    if (!sel?.rangeCount) return;
+    const node = sel.anchorNode;
+    if (!node || node.nodeType !== Node.TEXT_NODE) return;
+    const text = node.textContent || "";
+    const cursor = sel.anchorOffset;
+    // Just typed closing $? Find matching opening $
+    if (cursor < 1 || text[cursor - 1] !== "$") return;
+    const before = text.slice(0, cursor - 1);
+    const openIdx = before.lastIndexOf("$");
+    if (openIdx < 0) return;
+    const mathSrc = text.slice(openIdx + 1, cursor - 1).trim();
+    if (!mathSrc) return;
+    // Split text node: [before $] [math chip] [after $]
+    const afterText = text.slice(cursor);
+    const beforeText = text.slice(0, openIdx);
+    const chip = createMathChip(mathSrc);
+    const parent = node.parentNode;
+    const afterNode = document.createTextNode(afterText || "\u200B");
+    node.textContent = beforeText;
+    parent.insertBefore(chip, node.nextSibling);
+    parent.insertBefore(afterNode, chip.nextSibling);
+    // Place cursor after chip
+    const r = document.createRange();
+    r.setStart(afterNode, afterText ? 0 : 1);
+    r.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(r);
+  }, []);
+
   // ── Editor event handlers ──
   const handleInput = useCallback(() => {
     setStatus("Typing...");
+    tryAutoMath();
     queueAutosave(600);
-  }, [queueAutosave]);
+  }, [queueAutosave, tryAutoMath]);
 
   const handleKeyDown = useCallback((e) => {
     if (e.key !== "Enter") return;
@@ -453,7 +592,21 @@ export default function App() {
     editorRef.current?.querySelectorAll(".note-image-wrap.selected").forEach((n) => n.classList.remove("selected"));
     const wrap = e.target.closest(".note-image-wrap");
     if (wrap) wrap.classList.add("selected");
-  }, []);
+    // Double-click a math chip to revert to editable text
+    if (e.detail === 2) {
+      const chip = e.target.closest(".note-math-chip");
+      if (chip) {
+        e.preventDefault();
+        const src = chip.getAttribute("data-math") || "";
+        const textNode = document.createTextNode(src);
+        chip.replaceWith(textNode);
+        const sel = window.getSelection();
+        const r = document.createRange(); r.selectNode(textNode);
+        sel.removeAllRanges(); sel.addRange(r);
+        handleInput();
+      }
+    }
+  }, [handleInput]);
 
   const handleDragStart = useCallback((e) => {
     const wrap = e.target.closest(".note-image-wrap");
@@ -626,11 +779,46 @@ export default function App() {
     handleInput();
   }, [handleInput]);
 
+  const formatMathSelection = useCallback(() => {
+    const sel = window.getSelection();
+    const range = sel?.rangeCount ? sel.getRangeAt(0) : null;
+    if (!range || range.collapsed || !editorRef.current.contains(range.commonAncestorContainer)) {
+      setStatus("Select equation text first"); return;
+    }
+    // If selection is inside a math chip, un-format it back to text
+    const existingChip = range.commonAncestorContainer.closest?.(".note-math-chip")
+      || range.startContainer.parentElement?.closest?.(".note-math-chip");
+    if (existingChip) {
+      const src = existingChip.getAttribute("data-math") || "";
+      const textNode = document.createTextNode(src);
+      existingChip.replaceWith(textNode);
+      const r = document.createRange(); r.selectNode(textNode);
+      sel.removeAllRanges(); sel.addRange(r);
+      handleInput();
+      return;
+    }
+    const src = range.toString().trim();
+    if (!src) { setStatus("Select equation text first"); return; }
+    const chip = createMathChip(src);
+    range.deleteContents();
+    range.insertNode(chip);
+    const ar = document.createRange(); ar.setStartAfter(chip); ar.collapse(true);
+    sel.removeAllRanges(); sel.addRange(ar);
+    handleInput();
+  }, [handleInput]);
+
+  // Re-hydrate math chips after loading HTML from storage
+  const hydrateMathChips = useCallback((container) => {
+    container.querySelectorAll(".note-math-chip").forEach((chip) => hydrateMathChip(chip));
+  }, []);
+
   const exportPdf = useCallback(() => {
     const el = editorRef.current;
     if (!el || !(el.textContent || "").trim()) { setStatus("Nothing to export"); return; }
     const clone = el.cloneNode(true);
     clone.querySelectorAll(".note-image-wrap, img, .image-controls").forEach((n) => n.remove());
+    // Replace math chips with their source text for PDF
+    clone.querySelectorAll(".note-math-chip").forEach((c) => c.replaceWith(document.createTextNode(c.getAttribute("data-math") || "")));
     // Convert sections and <br> into paragraphs
     const paragraphs = [];
     clone.querySelectorAll(".note-section").forEach((sec) => {
@@ -655,6 +843,7 @@ export default function App() {
     if (!sectionEl) return "";
     const clone = sectionEl.cloneNode(true);
     clone.querySelectorAll(".image-controls").forEach((n) => n.remove());
+    clone.querySelectorAll(".note-math-chip").forEach((c) => c.replaceWith(document.createTextNode(c.getAttribute("data-math") || "")));
     clone.querySelectorAll(".note-image-wrap").forEach((w) => w.replaceWith(document.createTextNode(" ")));
     return (clone.textContent || "").replace(/\s+/g, " ").trim();
   }, []);
@@ -779,6 +968,9 @@ export default function App() {
               </button>
               <button type="button" className="btn section-tool-btn" onClick={titleSelection} aria-label="Title selection">
                 <span className="tool-icon">&#x1f3f7;</span><span className="tool-label">Highlight</span>
+              </button>
+              <button type="button" className="btn section-tool-btn" onClick={formatMathSelection} aria-label="Format math equation">
+                <span className="tool-icon math-tool-icon">&#x1d453;</span><span className="tool-label">Math</span>
               </button>
               <button type="button" className="btn section-tool-btn" onClick={exportPdf} aria-label="Export PDF">
                 <span className="tool-icon">&#x1f4c4;</span><span className="tool-label">Export</span>

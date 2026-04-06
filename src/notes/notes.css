@@ -405,7 +405,7 @@ main {
   white-space: pre-wrap;
 }
 
-#editor :where(span, p, div, a, b, strong, i, em, u, s, font, mark, li, ol, ul, h1, h2, h3, h4, h5, h6, blockquote, pre, code, sub, sup, strike):not(.note-section):not(.note-image-wrap):not(.note-image-wrap *):not(.note-title-chip):not(.image-controls):not(.image-control-btn):not(.resize-handle) {
+#editor :where(span, p, div, a, b, strong, i, em, u, s, font, mark, li, ol, ul, h1, h2, h3, h4, h5, h6, blockquote, pre, code, sub, sup, strike):not(.note-section):not(.note-image-wrap):not(.note-image-wrap *):not(.note-title-chip):not(.image-controls):not(.image-control-btn):not(.resize-handle):not(.note-math-chip):not(.note-math-chip *) {
   all: unset !important;
   color: var(--ink) !important;
   font-family: "Nunito", "Segoe UI", sans-serif !important;
@@ -611,6 +611,35 @@ aside {
   font-family: "Fredoka", sans-serif;
   font-weight: 600;
   letter-spacing: 0.01em;
+}
+
+/* ── Math chips (inline rendered equations) ── */
+.note-math-chip {
+  display: inline-block;
+  vertical-align: middle;
+  margin: 2px 4px;
+  padding: 4px 10px;
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  background: rgba(91, 111, 199, 0.07);
+  cursor: default;
+  user-select: all;
+}
+
+.note-math-chip .katex {
+  font-size: 1.15em;
+  color: var(--ink);
+}
+
+.note-math-chip .katex-display {
+  margin: 0;
+  text-align: left;
+}
+
+.math-tool-icon {
+  font-family: "Times New Roman", serif;
+  font-style: italic;
+  font-size: 22px !important;
 }
 
 .game-btn {
