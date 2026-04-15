@@ -833,7 +833,7 @@ export default function App() {
     const body = paragraphs.map((l) => l ? `<p>${escapeHtml(l)}</p>` : `<br>`).join("");
     const win = window.open("", "_blank");
     const title = labelRef.current;
-    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;700&display=swap');body{font-family:"Nunito",sans-serif;max-width:680px;margin:40px auto;padding:0 24px;color:#222;font-size:15px;line-height:1.8}h1{font-size:22px;margin-bottom:24px}p{margin:0}</style></head><body><h1>${escapeHtml(title)}</h1>${body}</body></html>`);
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;max-width:680px;margin:40px auto;padding:0 24px;color:#222;font-size:15px;line-height:1.8}h1{font-size:22px;margin-bottom:24px}p{margin:0}</style></head><body><h1>${escapeHtml(title)}</h1>${body}</body></html>`);
     win.document.close();
     win.print();
   }, []);

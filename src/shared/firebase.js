@@ -21,7 +21,7 @@ import {
   GoogleAuthProvider,
   signOut as fbSignOut,
   onAuthStateChanged,
-} from "firebase/auth";
+} from "firebase/auth/web-extension";
 import {
   getFirestore,
   doc,

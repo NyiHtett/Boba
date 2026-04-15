@@ -1,12 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { getApiKey, setApiKey, askGemini, getElKey, setElKey, speakEL } from "../shared/gemini";
+import { askGemini } from "../shared/gemini";
 
 export default function BobaAgent({ visible, noteContent, onClose }) {
-  const [apiKey, setKey] = useState("");
-  const [keyReady, setKeyReady] = useState(false);
-  const [keyInput, setKeyInput] = useState("");
-  const [elKey, setElState] = useState("");
-  const [elInput, setElInput] = useState("");
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -15,35 +10,10 @@ export default function BobaAgent({ visible, noteContent, onClose }) {
   const chatRef = useRef(null);
   const recogRef = useRef(null);
 
-  // Load saved API keys
-  useEffect(() => {
-    if (!visible) return;
-    Promise.all([getApiKey(), getElKey()]).then(([gk, ek]) => {
-      if (gk) { setKey(gk); setKeyInput(gk); }
-      if (ek) { setElState(ek); setElInput(ek); }
-      // Show setup if Gemini key missing
-      if (gk) setKeyReady(true);
-    });
-  }, [visible]);
-
   // Auto-scroll chat
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [messages]);
-
-  function saveKeys() {
-    const k = keyInput.trim();
-    if (!k) return;
-    const el = elInput.trim();
-    Promise.all([
-      setApiKey(k),
-      el ? setElKey(el) : Promise.resolve(),
-    ]).then(() => {
-      setKey(k);
-      if (el) setElState(el);
-      setKeyReady(true);
-    });
-  }
 
   async function send(text) {
     const q = text || input.trim();
@@ -52,7 +22,7 @@ export default function BobaAgent({ visible, noteContent, onClose }) {
     setMessages((m) => [...m, { role: "user", text: q }]);
     setLoading(true);
     try {
-      const answer = await askGemini(apiKey, noteContent, q);
+      const answer = await askGemini(noteContent, q);
       setMessages((m) => [...m, { role: "agent", text: answer }]);
       if (voiceOn) speak(answer);
     } catch (err) {
@@ -63,18 +33,9 @@ export default function BobaAgent({ visible, noteContent, onClose }) {
   }
 
   function speak(text) {
-    if (elKey) {
-      speakEL(elKey, text).catch(() => {
-        // fallback to browser voice
-        const u = new SpeechSynthesisUtterance(text);
-        u.rate = 1.05; u.pitch = 1.1;
-        speechSynthesis.speak(u);
-      });
-    } else {
-      const u = new SpeechSynthesisUtterance(text);
-      u.rate = 1.05; u.pitch = 1.1;
-      speechSynthesis.speak(u);
-    }
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.05; u.pitch = 1.1;
+    speechSynthesis.speak(u);
   }
 
   function toggleMic() {
@@ -228,80 +189,13 @@ export default function BobaAgent({ visible, noteContent, onClose }) {
       gap: 4,
       whiteSpace: "nowrap",
     },
-    iconBtn: {
-      width: "auto",
-      height: "auto",
-      border: "none",
-      borderRadius: 0,
-      cursor: "pointer",
-      fontSize: 16,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      fontWeight: 700,
-    },
-    setup: {
-      flex: 1,
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 12,
-      padding: 20,
-    },
   };
-
-  // Setup screen
-  if (!keyReady) {
-    return (
-      <div style={s.panel}>
-        <div style={s.header}>
-          <span>Boba Agent</span>
-          <button style={s.closeBtn} onClick={onClose}>✕</button>
-        </div>
-        <div style={s.setup}>
-          <p style={{ margin: 0, fontFamily: '"Fredoka", sans-serif', fontWeight: 600, fontSize: 15, color: "var(--ink)" }}>
-            Gemini API key
-          </p>
-          <input
-            type="password"
-            placeholder="AIza..."
-            value={keyInput}
-            onChange={(e) => setKeyInput(e.target.value)}
-            style={{ ...s.textInput, width: "100%", maxWidth: 260, border: "2px solid var(--line)", borderRadius: 10, padding: "8px 10px" }}
-          />
-          <p style={{ margin: 0, fontFamily: '"Fredoka", sans-serif', fontWeight: 600, fontSize: 13, color: "var(--muted)" }}>
-            ElevenLabs key <span style={{ fontSize: 10, opacity: 0.7 }}>(optional, for voice)</span>
-          </p>
-          <input
-            type="password"
-            placeholder="sk_..."
-            value={elInput}
-            onChange={(e) => setElInput(e.target.value)}
-            style={{ ...s.textInput, width: "100%", maxWidth: 260, border: "2px solid var(--line)", borderRadius: 10, padding: "8px 10px" }}
-          />
-          <button
-            onClick={saveKeys}
-            style={{ ...s.iconBtn, width: "auto", padding: "8px 20px", background: "var(--accent)", color: "#fff", border: "2px solid var(--line)" }}
-          >
-            Save
-          </button>
-          <p style={{ margin: 0, fontSize: 10, color: "var(--muted)", fontWeight: 600, textAlign: "center", lineHeight: 1.4 }}>
-            <span style={{ color: "var(--accent)" }}>ai.google.dev</span> &middot; <span style={{ color: "var(--accent)" }}>elevenlabs.io</span>
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div style={s.panel}>
       <div style={s.header}>
         <span>Boba Agent</span>
-        <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button style={{ ...s.closeBtn, fontSize: 12, opacity: 0.7 }} onClick={() => setKeyReady(false)}>keys</button>
-          <button style={s.closeBtn} onClick={onClose}>✕</button>
-        </span>
+        <button style={s.closeBtn} onClick={onClose}>✕</button>
       </div>
       <div ref={chatRef} style={s.chat}>
         {messages.length === 0 && (

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { getApiKey, setApiKey, generateQuiz } from "../shared/gemini";
+import { generateQuiz } from "../shared/gemini";
 
 export default function BobaQuiz({ phase, sectionEl, editorEl, sheetEl, onSelectSection, getSectionText, onPhaseChange, onComplete, onClose }) {
   const [questions, setQuestions] = useState(null);
@@ -47,15 +47,9 @@ export default function BobaQuiz({ phase, sectionEl, editorEl, sheetEl, onSelect
     let cancelled = false;
     (async () => {
       try {
-        let apiKey = await getApiKey();
-        if (!apiKey) {
-          apiKey = prompt("Enter your Gemini API key (from ai.google.dev):");
-          if (!apiKey?.trim()) { onClose(); return; }
-          await setApiKey(apiKey.trim());
-        }
         const text = getSectionText(sectionEl);
         if (text.split(/\s+/).length < 20) { alert("Need more notes for a quiz!"); onClose(); return; }
-        const result = await generateQuiz(apiKey, text);
+        const result = await generateQuiz(text);
         if (cancelled) return;
         setQuestions(result.questions);
         setCurrentQ(0);
@@ -119,7 +113,7 @@ export default function BobaQuiz({ phase, sectionEl, editorEl, sheetEl, onSelect
 
   const handleNext = useCallback(() => {
     setAnswered(null);
-    if (currentQ < 2) {
+    if (currentQ < 9) {
       setCurrentQ((q) => q + 1);
     } else {
       onPhaseChange("scoring");
@@ -166,7 +160,7 @@ export default function BobaQuiz({ phase, sectionEl, editorEl, sheetEl, onSelect
       {/* Quiz questions */}
       {phase === "quizzing" && overlay && questions && (
         <div className="quiz-overlay" style={{ top: overlay.top, left: overlay.left, width: overlay.width, minHeight: overlay.height }}>
-          <div className="quiz-question-num">Q{currentQ + 1} / 3</div>
+          <div className="quiz-question-num">Q{currentQ + 1} / 10</div>
           <div className="quiz-question-text">{questions[currentQ].question}</div>
           {questions[currentQ].options.map((opt, i) => {
             let cls = "quiz-option";
@@ -194,9 +188,9 @@ export default function BobaQuiz({ phase, sectionEl, editorEl, sheetEl, onSelect
       {phase === "scoring" && overlay && (
         <div className="quiz-overlay" style={{ top: overlay.top, left: overlay.left, width: overlay.width, minHeight: overlay.height }}>
           <div className="quiz-score">
-            <div className="quiz-score-number">{score} / 3</div>
+            <div className="quiz-score-number">{score} / 10</div>
             <div className="quiz-score-label">
-              {score === 3 ? "Perfect!" : score >= 2 ? "Nice work!" : "Keep studying!"}
+              {score === 10 ? "Perfect!" : score >= 7 ? "Nice work!" : score >= 4 ? "Not bad!" : "Keep studying!"}
             </div>
             <button className="quiz-done-btn" onClick={onComplete}>Done</button>
           </div>
