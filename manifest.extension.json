@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Boba",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Aesthetic note-taking with Google sign-in cloud sync.",
   "permissions": [
     "storage",
@@ -37,6 +37,6 @@
     }
   ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://api.elevenlabs.io https://extensionpay.com"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://extensionpay.com"
   }
 }
