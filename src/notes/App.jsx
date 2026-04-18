@@ -580,13 +580,33 @@ export default function App() {
       addImagesAtCursor(files);
       return;
     }
-    // Strip formatting: paste as plain text only
+    // Strip formatting: paste as plain text only, preserving spaces and newlines
     const text = e.clipboardData?.getData("text/plain");
     if (text != null) {
       e.preventDefault();
-      document.execCommand("insertText", false, text);
+      const sel = window.getSelection();
+      if (!sel?.rangeCount) return;
+      const range = sel.getRangeAt(0);
+      if (!editorRef.current?.contains(range.commonAncestorContainer)) return;
+      range.deleteContents();
+      const frag = document.createDocumentFragment();
+      const lines = text.split(/\r\n|\r|\n/);
+      lines.forEach((line, i) => {
+        if (i > 0) frag.appendChild(document.createElement("br"));
+        if (line) frag.appendChild(document.createTextNode(line));
+      });
+      const lastNode = frag.lastChild;
+      range.insertNode(frag);
+      if (lastNode) {
+        const after = document.createRange();
+        after.setStartAfter(lastNode);
+        after.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(after);
+      }
+      handleInput();
     }
-  }, [addImagesAtCursor]);
+  }, [addImagesAtCursor, handleInput]);
 
   const handleEditorClick = useCallback((e) => {
     editorRef.current?.querySelectorAll(".note-image-wrap.selected").forEach((n) => n.classList.remove("selected"));
