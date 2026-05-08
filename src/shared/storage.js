@@ -1,14 +1,21 @@
 export const NOTES_KEY = "notesByCourse";
 export const BG_MODE_KEY = "notesBackgroundMode";
+export const SURFACE_MODE_KEY = "notesSurfaceMode";
 
 export const DEFAULT_BG_MODE = "midnight";
 export const BG_MODES = ["midnight", "fire", "garden", "ocean"];
+export const DEFAULT_SURFACE_MODE = "dark";
+export const SURFACE_MODES = ["dark", "light"];
 export const MAX_HISTORY = 40;
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 export const MAX_IMAGES_PER_NOTE = 12;
 
 export function normalizeBgMode(mode) {
   return BG_MODES.includes(mode) ? mode : DEFAULT_BG_MODE;
+}
+
+export function normalizeSurfaceMode(mode) {
+  return SURFACE_MODES.includes(mode) ? mode : DEFAULT_SURFACE_MODE;
 }
 
 export function hasMeaningfulData(entry) {

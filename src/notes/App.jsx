@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
-  NOTES_KEY, BG_MODE_KEY, MAX_HISTORY, MAX_IMAGE_BYTES, MAX_IMAGES_PER_NOTE,
-  BG_MODES, normalizeBgMode,
+  NOTES_KEY, BG_MODE_KEY, SURFACE_MODE_KEY, MAX_HISTORY, MAX_IMAGE_BYTES, MAX_IMAGES_PER_NOTE,
+  BG_MODES, normalizeBgMode, normalizeSurfaceMode,
 } from "../shared/storage";
 import { onAuth, pushNote } from "../shared/firebase";
 import katex from "katex";
@@ -188,6 +188,7 @@ export default function App() {
   const [snapshots, setSnapshots] = useState(0);
   const [canUndo, setCanUndo] = useState(false);
   const [bgMode, setBgMode] = useState("midnight");
+  const [surfaceMode, setSurfaceMode] = useState("dark");
   const [highlightColor, setHighlightColor] = useState("yellow");
   const sheetRef = useRef(null);
 
@@ -483,11 +484,12 @@ export default function App() {
   // ── Init ──
   useEffect(() => {
     (async () => {
-      const data = await chrome.storage.local.get([NOTES_KEY, BG_MODE_KEY]);
+      const data = await chrome.storage.local.get([NOTES_KEY, BG_MODE_KEY, SURFACE_MODE_KEY]);
       const notes = data[NOTES_KEY] || {};
       notesRef.current = notes;
       const mode = normalizeBgMode(data[BG_MODE_KEY]);
       setBgMode(mode);
+      setSurfaceMode(normalizeSurfaceMode(data[SURFACE_MODE_KEY]));
 
       const entry = notesRef.current[ctx.contextId] || { text: "", html: "", history: [] };
       const el = editorRef.current;
@@ -533,6 +535,7 @@ export default function App() {
     const listener = (changes, area) => {
       if (area !== "local") return;
       if (changes[BG_MODE_KEY]) setBgMode(normalizeBgMode(changes[BG_MODE_KEY].newValue));
+      if (changes[SURFACE_MODE_KEY]) setSurfaceMode(normalizeSurfaceMode(changes[SURFACE_MODE_KEY].newValue));
       if (changes[NOTES_KEY]) {
         const fresh = changes[NOTES_KEY].newValue || {};
         notesRef.current = fresh;
@@ -556,6 +559,11 @@ export default function App() {
     for (const m of BG_MODES) document.body.classList.remove(`bg-${m}`);
     document.body.classList.add(`bg-${bgMode}`);
   }, [bgMode]);
+
+  useEffect(() => {
+    document.body.classList.toggle("surface-light", surfaceMode === "light");
+    document.body.classList.toggle("surface-dark", surfaceMode === "dark");
+  }, [surfaceMode]);
 
   // ── Auto-format $...$ math ──
   const tryAutoMath = useCallback(() => {
@@ -947,6 +955,12 @@ export default function App() {
     await chrome.storage.local.set({ [BG_MODE_KEY]: m });
   }, []);
 
+  const changeSurfaceMode = useCallback(async (mode) => {
+    const m = normalizeSurfaceMode(mode);
+    setSurfaceMode(m);
+    await chrome.storage.local.set({ [SURFACE_MODE_KEY]: m });
+  }, []);
+
   const handleLabelChange = useCallback((e) => {
     const val = e.target.value;
     setLabel(val);
@@ -1050,6 +1064,24 @@ export default function App() {
                   title={`${name} highlight`}
                   aria-label={`${name} highlight`}
                 />
+              ))}
+            </div>
+          </div>
+          <div className="surface-panel">
+            <p className="label">Canvas mode</p>
+            <div className="surface-switch" role="group" aria-label="Canvas mode">
+              {[
+                ["dark", "Dark"],
+                ["light", "Light"],
+              ].map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`surface-pill${surfaceMode === id ? " active" : ""}`}
+                  onClick={() => changeSurfaceMode(id)}
+                >
+                  {label}
+                </button>
               ))}
             </div>
           </div>
