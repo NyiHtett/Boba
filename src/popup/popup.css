@@ -282,32 +282,13 @@ h2 {
   background: var(--cream-deep);
 }
 
-/* ── Upgrade banner ── */
-
-.upgrade-block {
-  background: linear-gradient(135deg, #FFF3C4 0%, #FFE8A8 100%);
-  border: 3px solid var(--neo);
-  border-radius: 18px;
-  box-shadow: 5px 5px 0 var(--warm-shadow);
-  padding: 10px;
+.open-actions {
   display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
-  text-align: center;
 }
 
-.upgrade-text {
-  margin: 0;
-  font-family: "Fredoka", sans-serif;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--neo);
-}
-
-.btn-upgrade {
-  background: var(--accent);
-  color: #ffffff;
-}
-
-.btn-upgrade:hover:not(:disabled) {
-  background: #4E61B5;
+.btn-secondary {
+  background: #ffffff;
+  color: var(--ink);
 }

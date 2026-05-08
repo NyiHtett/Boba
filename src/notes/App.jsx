@@ -4,10 +4,6 @@ import {
   BG_MODES, normalizeBgMode,
 } from "../shared/storage";
 import { onAuth, pushNote } from "../shared/firebase";
-import { checkProStatus, openPaymentPage, openTrialPage } from "../shared/paywall";
-import BobaRunner from "./BobaRunner";
-import BobaMascot from "./BobaMascot";
-import BobaQuiz from "./BobaQuiz";
 import katex from "katex";
 import "katex/dist/katex.min.css";
 
@@ -157,6 +153,13 @@ function hydrateMathChip(chip) {
 
 function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
 
+const HIGHLIGHT_COLORS = [
+  ["yellow", "Yellow"],
+  ["pink", "Pink"],
+  ["green", "Green"],
+  ["blue", "Blue"],
+];
+
 function fileToDataUrl(file) {
   return new Promise((res, rej) => {
     const r = new FileReader();
@@ -176,19 +179,16 @@ export default function App() {
   const lastRange = useRef(null);
   const lastSavedHtml = useRef("");
   const lastSnapText = useRef("");
+  const undoStack = useRef([]);
+  const isRestoringUndo = useRef(false);
 
   const [status, setStatus] = useState("Idle");
   const [words, setWords] = useState(0);
   const [lastSaved, setLastSaved] = useState("Never");
   const [snapshots, setSnapshots] = useState(0);
+  const [canUndo, setCanUndo] = useState(false);
   const [bgMode, setBgMode] = useState("midnight");
-  const [showGame, setShowGame] = useState(false);
-  const [agentAwake, setAgentAwake] = useState(false);
-  const [quizPhase, setQuizPhase] = useState("idle");
-  const [quizSection, setQuizSection] = useState(null);
-  const [isPro, setIsPro] = useState(null);
-  const [proUser, setProUser] = useState(null);
-  const isProRef = useRef(false);
+  const [highlightColor, setHighlightColor] = useState("yellow");
   const sheetRef = useRef(null);
 
   // Track signed-in user so we can sync to Firestore on save
@@ -196,23 +196,6 @@ export default function App() {
   useEffect(() => {
     return onAuth((u) => { userRef.current = u; });
   }, []);
-
-  // Check paywall status
-  useEffect(() => {
-    checkProStatus().then(({ isPro: pro, user }) => {
-      setIsPro(pro);
-      setProUser(user);
-      isProRef.current = pro;
-    }).catch(() => { setIsPro(false); isProRef.current = false; });
-  }, []);
-
-  const showUpgradePrompt = useCallback(() => {
-    if (!proUser?.trialStartedAt) {
-      if (confirm("This is a Pro feature. Start your free 3-day trial?")) openTrialPage();
-    } else {
-      if (confirm("Your trial has ended. Upgrade to Boba Pro for $4.99/month?")) openPaymentPage();
-    }
-  }, [proUser]);
 
   const notesRef = useRef({});
 
@@ -223,7 +206,6 @@ export default function App() {
     const clone = el.cloneNode(true);
     clone.querySelectorAll(".image-controls").forEach((n) => n.remove());
     clone.querySelectorAll(".note-math-chip").forEach((c) => c.removeAttribute("contenteditable"));
-    clone.querySelectorAll(".note-section").forEach((s) => s.classList.remove("quiz-active"));
     clone.querySelectorAll(".note-image-wrap").forEach((w) => {
       w.classList.remove("selected");
       w.removeAttribute("contenteditable");
@@ -248,9 +230,19 @@ export default function App() {
     setLastSaved(history.length ? new Date(history[history.length - 1].t).toLocaleString() : "Never");
   }, []);
 
+  const pushUndoSnapshot = useCallback(() => {
+    if (isRestoringUndo.current) return;
+    const html = serializeHtml();
+    const stack = undoStack.current;
+    if (!html && !stack.length) return;
+    if (stack[stack.length - 1] === html) return;
+    stack.push(html);
+    undoStack.current = stack.slice(-MAX_HISTORY);
+    setCanUndo(undoStack.current.length > 0);
+  }, [serializeHtml]);
+
   // ── Cloud sync (Firestore) ──
   const syncToCloud = useCallback(async (notes, noteId) => {
-    if (!isProRef.current) return;
     const u = userRef.current;
     if (u && noteId && notes[noteId]) {
       try { await pushNote(u.uid, noteId, notes[noteId]); }
@@ -349,6 +341,7 @@ export default function App() {
     wrap.setAttribute("contenteditable", "false");
     wrap.setAttribute("draggable", "true");
     wrap.dataset.imageId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    wrap.title = "Drag to move";
 
     const img = document.createElement("img");
     img.src = dataUrl;
@@ -362,6 +355,7 @@ export default function App() {
       b.type = "button"; b.className = "image-control-btn"; b.textContent = label;
       b.addEventListener("click", (e) => {
         e.preventDefault(); e.stopPropagation();
+        pushUndoSnapshot();
         wrap.classList.remove("align-left", "align-right", "align-line");
         wrap.classList.add(`align-${align}`);
         setStatus("Typing..."); queueAutosave(300);
@@ -372,6 +366,7 @@ export default function App() {
     del.type = "button"; del.className = "image-control-btn danger"; del.textContent = "Delete";
     del.addEventListener("click", (e) => {
       e.preventDefault(); e.stopPropagation();
+      pushUndoSnapshot();
       wrap.remove();
       setStatus("Saving...");
       save(true).catch((err) => { console.error("Delete-image save failed:", err); setStatus("Storage is full."); });
@@ -386,7 +381,7 @@ export default function App() {
     wrap.appendChild(img);
     wrap.appendChild(controls);
     return wrap;
-  }, [queueAutosave, save]);
+  }, [pushUndoSnapshot, queueAutosave, save]);
 
   const decorateImages = useCallback(() => {
     const el = editorRef.current;
@@ -403,6 +398,11 @@ export default function App() {
     });
   }, [createImageWrap]);
 
+  // Re-hydrate math chips after loading HTML from storage
+  const hydrateMathChips = useCallback((container) => {
+    container.querySelectorAll(".note-math-chip").forEach((chip) => hydrateMathChip(chip));
+  }, []);
+
   const countImages = useCallback(() => {
     return editorRef.current?.querySelectorAll("img.note-inline-image").length || 0;
   }, []);
@@ -410,6 +410,7 @@ export default function App() {
   const addImagesAtCursor = useCallback(async (files) => {
     const slots = MAX_IMAGES_PER_NOTE - countImages();
     if (slots <= 0) { setStatus("Image limit reached"); return; }
+    pushUndoSnapshot();
     for (const file of files.slice(0, slots)) {
       if (file.size > MAX_IMAGE_BYTES) continue;
       const dataUrl = await fileToDataUrl(file);
@@ -428,7 +429,56 @@ export default function App() {
       sel.removeAllRanges(); sel.addRange(range);
     }
     setStatus("Typing..."); queueAutosave(300);
-  }, [countImages, findSection, getLastSection, createSection, createImageWrap, queueAutosave]);
+  }, [countImages, findSection, getLastSection, createSection, createImageWrap, pushUndoSnapshot, queueAutosave]);
+
+  const restoreEditorHtml = useCallback((html) => {
+    const el = editorRef.current;
+    if (!el) return;
+    isRestoringUndo.current = true;
+    try {
+      el.innerHTML = html;
+      if (!el.querySelector(".note-section")) {
+        const s = createSection();
+        s.innerHTML = el.innerHTML;
+        el.innerHTML = "";
+        el.appendChild(s);
+      }
+      el.querySelectorAll(".note-section").forEach((s) => {
+        s.setAttribute("contenteditable", "true");
+        s.setAttribute("spellcheck", "true");
+      if (!s.hasAttribute("data-placeholder")) s.setAttribute("data-placeholder", "Start writing...");
+        normalizeContent(s);
+      });
+      decorateImages();
+      hydrateMathChips(el);
+      stripInlineStyles(el);
+    } finally {
+      isRestoringUndo.current = false;
+    }
+  }, [createSection, decorateImages, hydrateMathChips, normalizeContent]);
+
+  const undoLastChange = useCallback(() => {
+    const previousHtml = undoStack.current.pop();
+    setCanUndo(undoStack.current.length > 0);
+    if (previousHtml == null) {
+      setStatus("Nothing to undo");
+      return;
+    }
+    restoreEditorHtml(previousHtml);
+    const last = getLastSection();
+    if (last) {
+      last.focus();
+      const sel = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(last);
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+    setStatus("Undo");
+    updateStats(getPlainText(), notesRef.current[ctx.contextId]?.history || []);
+    save(false).catch((e) => { console.error("Undo save failed:", e); setStatus("Storage is full."); });
+  }, [ctx.contextId, getLastSection, getPlainText, restoreEditorHtml, save, updateStats]);
 
   // ── Init ──
   useEffect(() => {
@@ -452,7 +502,6 @@ export default function App() {
         el.querySelectorAll(".note-section").forEach((s) => {
           s.setAttribute("contenteditable", "true");
           s.setAttribute("spellcheck", "true");
-          s.classList.remove("quiz-active");
           if (!s.hasAttribute("data-placeholder")) s.setAttribute("data-placeholder", "Start writing...");
           normalizeContent(s);
         });
@@ -475,6 +524,8 @@ export default function App() {
         stripInlineStyles(el);
         lastSavedHtml.current = serializeHtml();
         lastSnapText.current = (entry.history?.length ? entry.history[entry.history.length - 1].text : "") || "";
+        undoStack.current = [];
+        setCanUndo(false);
         updateStats(getPlainText(), entry.history || []);
       }
     })();
@@ -539,6 +590,10 @@ export default function App() {
   }, []);
 
   // ── Editor event handlers ──
+  const handleBeforeInput = useCallback(() => {
+    pushUndoSnapshot();
+  }, [pushUndoSnapshot]);
+
   const handleInput = useCallback(() => {
     setStatus("Typing...");
     tryAutoMath();
@@ -546,8 +601,14 @@ export default function App() {
   }, [queueAutosave, tryAutoMath]);
 
   const handleKeyDown = useCallback((e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z" && !e.shiftKey) {
+      e.preventDefault();
+      undoLastChange();
+      return;
+    }
     if (e.key !== "Enter") return;
     e.preventDefault();
+    pushUndoSnapshot();
     if (document.queryCommandSupported?.("insertLineBreak")) {
       document.execCommand("insertLineBreak");
     } else {
@@ -560,7 +621,7 @@ export default function App() {
       sel.removeAllRanges(); sel.addRange(range);
     }
     handleInput();
-  }, [handleInput]);
+  }, [handleInput, pushUndoSnapshot, undoLastChange]);
 
   const handleBlur = useCallback(() => {
     const sel = window.getSelection();
@@ -588,6 +649,7 @@ export default function App() {
       if (!sel?.rangeCount) return;
       const range = sel.getRangeAt(0);
       if (!editorRef.current?.contains(range.commonAncestorContainer)) return;
+      pushUndoSnapshot();
       range.deleteContents();
       const frag = document.createDocumentFragment();
       const lines = text.split(/\r\n|\r|\n/);
@@ -606,7 +668,7 @@ export default function App() {
       }
       handleInput();
     }
-  }, [addImagesAtCursor, handleInput]);
+  }, [addImagesAtCursor, handleInput, pushUndoSnapshot]);
 
   const handleEditorClick = useCallback((e) => {
     editorRef.current?.querySelectorAll(".note-image-wrap.selected").forEach((n) => n.classList.remove("selected"));
@@ -617,6 +679,7 @@ export default function App() {
       const chip = e.target.closest(".note-math-chip");
       if (chip) {
         e.preventDefault();
+        pushUndoSnapshot();
         const src = chip.getAttribute("data-math") || "";
         const textNode = document.createTextNode(src);
         chip.replaceWith(textNode);
@@ -626,20 +689,35 @@ export default function App() {
         handleInput();
       }
     }
-  }, [handleInput]);
+  }, [handleInput, pushUndoSnapshot]);
 
   const handleDragStart = useCallback((e) => {
     const wrap = e.target.closest(".note-image-wrap");
     if (!wrap) return;
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/pb-image-id", wrap.dataset.imageId || "");
+    wrap.classList.add("dragging");
+    const ghost = wrap.cloneNode(true);
+    ghost.classList.add("drag-ghost");
+    ghost.style.width = `${wrap.getBoundingClientRect().width}px`;
+    document.body.appendChild(ghost);
+    e.dataTransfer.setDragImage(ghost, 24, 24);
+    requestAnimationFrame(() => ghost.remove());
+  }, []);
+
+  const handleDragEnd = useCallback(() => {
+    editorRef.current?.querySelectorAll(".note-image-wrap.dragging").forEach((n) => n.classList.remove("dragging"));
+    editorRef.current?.querySelectorAll(".note-section.drop-target").forEach((s) => s.classList.remove("drop-target"));
   }, []);
 
   const handleDragOver = useCallback((e) => {
     if (e.dataTransfer?.types?.includes("text/pb-image-id")) {
       e.preventDefault(); e.dataTransfer.dropEffect = "move";
+      const targetSection = findSection(e.target) || getLastSection();
+      editorRef.current?.querySelectorAll(".note-section.drop-target").forEach((s) => s.classList.remove("drop-target"));
+      targetSection?.classList.add("drop-target");
     }
-  }, []);
+  }, [findSection, getLastSection]);
 
   const moveCaretToPoint = useCallback((x, y) => {
     const sec = findSection(document.activeElement) || getLastSection() || createSection();
@@ -664,6 +742,7 @@ export default function App() {
     if (!imageId) return;
     const wrap = editorRef.current.querySelector(`.note-image-wrap[data-image-id="${CSS.escape(imageId)}"]`);
     if (!wrap) return;
+    pushUndoSnapshot();
     moveCaretToPoint(e.clientX, e.clientY);
     const sel = window.getSelection();
     const range = sel?.rangeCount ? sel.getRangeAt(0) : null;
@@ -671,8 +750,10 @@ export default function App() {
     range.deleteContents(); range.insertNode(wrap);
     const spacer = document.createElement("br");
     range.collapse(false); range.insertNode(spacer);
+    editorRef.current?.querySelectorAll(".note-section.drop-target").forEach((s) => s.classList.remove("drop-target"));
+    wrap.classList.remove("dragging");
     handleInput();
-  }, [moveCaretToPoint, handleInput]);
+  }, [moveCaretToPoint, handleInput, pushUndoSnapshot]);
 
   const handleSheetDrop = useCallback((e) => {
     const files = Array.from(e.dataTransfer?.files || []).filter((f) => f.type?.startsWith("image/"));
@@ -688,6 +769,7 @@ export default function App() {
     const wrap = handle.closest(".note-image-wrap");
     if (!wrap) return;
     e.preventDefault(); e.stopPropagation();
+    pushUndoSnapshot();
     resizeSession.current = { wrap, dir: handle.dataset.dir || "se", startX: e.clientX, startWidth: wrap.getBoundingClientRect().width };
 
     const onMove = (ev) => {
@@ -701,7 +783,7 @@ export default function App() {
     const onUp = () => { window.removeEventListener("pointermove", onMove); resizeSession.current = null; handleInput(); };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp, { once: true });
-  }, [handleInput]);
+  }, [handleInput, pushUndoSnapshot]);
 
   const handleVisChange = useCallback(() => {
     if (document.visibilityState !== "hidden") return;
@@ -745,6 +827,7 @@ export default function App() {
 
   // ── Section tools ──
   const splitSection = useCallback(() => {
+    pushUndoSnapshot();
     const sel = window.getSelection();
     let range = sel?.rangeCount ? sel.getRangeAt(0) : null;
     let section = range ? findSection(range.commonAncestorContainer) : null;
@@ -765,7 +848,7 @@ export default function App() {
     const nr = document.createRange(); nr.selectNodeContents(newSec); nr.collapse(true);
     newSec.focus(); sel.removeAllRanges(); sel.addRange(nr);
     handleInput();
-  }, [findSection, getLastSection, createSection, normalizeContent, handleInput]);
+  }, [findSection, getLastSection, createSection, normalizeContent, handleInput, pushUndoSnapshot]);
 
   const mergeSection = useCallback(() => {
     const sel = window.getSelection();
@@ -774,6 +857,7 @@ export default function App() {
     if (!cur) { setStatus("Place cursor in a section first"); return; }
     const prev = cur.previousElementSibling;
     if (!prev || !prev.classList.contains("note-section")) { setStatus("No section above"); return; }
+    pushUndoSnapshot();
     const prevHas = Boolean((prev.textContent || "").trim()) || Boolean(prev.querySelector(".note-image-wrap, img"));
     const curHas = Boolean((cur.textContent || "").trim()) || Boolean(cur.querySelector(".note-image-wrap, img"));
     if (prevHas && curHas) { prev.appendChild(document.createElement("br")); prev.appendChild(document.createElement("br")); }
@@ -782,7 +866,7 @@ export default function App() {
     const nr = document.createRange(); nr.selectNodeContents(prev); nr.collapse(false);
     prev.focus(); sel.removeAllRanges(); sel.addRange(nr);
     handleInput();
-  }, [findSection, normalizeContent, handleInput]);
+  }, [findSection, normalizeContent, handleInput, pushUndoSnapshot]);
 
   const titleSelection = useCallback(() => {
     const sel = window.getSelection();
@@ -790,14 +874,15 @@ export default function App() {
     if (!range || range.collapsed || !editorRef.current.contains(range.commonAncestorContainer)) {
       setStatus("Select text first"); return;
     }
+    pushUndoSnapshot();
     const chip = document.createElement("span");
-    chip.className = "note-title-chip";
+    chip.className = `note-title-chip highlight-${highlightColor}`;
     chip.appendChild(range.extractContents());
     range.insertNode(chip);
     const ar = document.createRange(); ar.setStartAfter(chip); ar.collapse(true);
     sel.removeAllRanges(); sel.addRange(ar);
     handleInput();
-  }, [handleInput]);
+  }, [handleInput, highlightColor, pushUndoSnapshot]);
 
   const formatMathSelection = useCallback(() => {
     const sel = window.getSelection();
@@ -809,6 +894,7 @@ export default function App() {
     const existingChip = range.commonAncestorContainer.closest?.(".note-math-chip")
       || range.startContainer.parentElement?.closest?.(".note-math-chip");
     if (existingChip) {
+      pushUndoSnapshot();
       const src = existingChip.getAttribute("data-math") || "";
       const textNode = document.createTextNode(src);
       existingChip.replaceWith(textNode);
@@ -819,18 +905,14 @@ export default function App() {
     }
     const src = range.toString().trim();
     if (!src) { setStatus("Select equation text first"); return; }
+    pushUndoSnapshot();
     const chip = createMathChip(src);
     range.deleteContents();
     range.insertNode(chip);
     const ar = document.createRange(); ar.setStartAfter(chip); ar.collapse(true);
     sel.removeAllRanges(); sel.addRange(ar);
     handleInput();
-  }, [handleInput]);
-
-  // Re-hydrate math chips after loading HTML from storage
-  const hydrateMathChips = useCallback((container) => {
-    container.querySelectorAll(".note-math-chip").forEach((chip) => hydrateMathChip(chip));
-  }, []);
+  }, [handleInput, pushUndoSnapshot]);
 
   const exportPdf = useCallback(() => {
     const el = editorRef.current;
@@ -856,37 +938,6 @@ export default function App() {
     win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;max-width:680px;margin:40px auto;padding:0 24px;color:#222;font-size:15px;line-height:1.8}h1{font-size:22px;margin-bottom:24px}p{margin:0}</style></head><body><h1>${escapeHtml(title)}</h1>${body}</body></html>`);
     win.document.close();
     win.print();
-  }, []);
-
-  // ── Quiz ──
-  const getSectionText = useCallback((sectionEl) => {
-    if (!sectionEl) return "";
-    const clone = sectionEl.cloneNode(true);
-    clone.querySelectorAll(".image-controls").forEach((n) => n.remove());
-    clone.querySelectorAll(".note-math-chip").forEach((c) => c.replaceWith(document.createTextNode(c.getAttribute("data-math") || "")));
-    clone.querySelectorAll(".note-image-wrap").forEach((w) => w.replaceWith(document.createTextNode(" ")));
-    return (clone.textContent || "").replace(/\s+/g, " ").trim();
-  }, []);
-
-  const handleQuizSelect = useCallback((sectionEl) => {
-    setQuizSection(sectionEl);
-    setQuizPhase("loading");
-  }, []);
-
-  const handleQuizComplete = useCallback(() => {
-    setQuizPhase("restoring");
-    setTimeout(() => {
-      setQuizPhase("idle");
-      setQuizSection(null);
-      setAgentAwake(false);
-    }, 1500);
-  }, []);
-
-  const handleQuizClose = useCallback(() => {
-    editorRef.current?.querySelectorAll(".note-section.quiz-active").forEach((s) => s.classList.remove("quiz-active"));
-    setQuizPhase("idle");
-    setQuizSection(null);
-    setAgentAwake(false);
   }, []);
 
   // ── Background mode ──
@@ -934,27 +985,17 @@ export default function App() {
           onDragOver={(e) => { if (!e.dataTransfer?.types?.includes("text/pb-image-id")) { e.preventDefault(); } }}
           onDrop={handleSheetDrop}
         >
-          <BobaRunner visible={showGame} onClose={() => setShowGame(false)} />
-          <BobaQuiz
-            phase={quizPhase}
-            sectionEl={quizSection}
-            editorEl={editorRef.current}
-            sheetEl={sheetRef.current}
-            onSelectSection={handleQuizSelect}
-            getSectionText={getSectionText}
-            onPhaseChange={setQuizPhase}
-            onComplete={handleQuizComplete}
-            onClose={handleQuizClose}
-          />
           <div
             ref={editorRef}
             id="editor"
+            onBeforeInput={handleBeforeInput}
             onInput={handleInput}
             onKeyDown={handleKeyDown}
             onBlur={handleBlur}
             onPaste={handlePaste}
             onClick={handleEditorClick}
             onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
             onDragOver={handleDragOver}
             onDrop={handleDrop}
             onPointerDown={handleResizeDown}
@@ -980,6 +1021,9 @@ export default function App() {
               <span className="value">{snapshots}</span>
             </div>
             <div className="section-tools">
+              <button type="button" className="btn section-tool-btn" onClick={undoLastChange} disabled={!canUndo} aria-label="Undo last change">
+                <span className="tool-icon">&#x21b6;</span><span className="tool-label">Undo</span>
+              </button>
               <button type="button" className="btn section-tool-btn" onClick={splitSection} aria-label="Split section">
                 <span className="tool-icon">&#x1f528;</span><span className="tool-label">Break</span>
               </button>
@@ -996,29 +1040,23 @@ export default function App() {
                 <span className="tool-icon">&#x1f4c4;</span><span className="tool-label">Export</span>
               </button>
             </div>
-            <button type="button" className="btn section-tool-btn game-btn" onClick={() => setShowGame((v) => !v)} aria-label="Boba Run">
-              <span className="tool-icon">&#x1f9cb;</span><span className="tool-label">{showGame ? "Close game" : "Boba Run"}</span>
-            </button>
-          </div>
-          <div className={`mascot-area${agentAwake ? " agent-active" : ""}`}>
-            {quizPhase === "selecting" && (
-              <div className="speech-bubble">Tap a dot to pick a block!</div>
-            )}
-            <BobaMascot awake={agentAwake} onClick={() => {
-              if (quizPhase !== "idle") { handleQuizClose(); return; }
-              if (!isPro) { showUpgradePrompt(); return; }
-              setAgentAwake(true); setQuizPhase("selecting");
-            }} />
-            <p className="mascot-hint">
-              {quizPhase === "loading" ? "Brewing..." :
-               quizPhase !== "idle" ? "Quizzing..." :
-               "Tap to wake"}
-            </p>
+            <div className="highlight-tools" aria-label="Highlight color">
+              {HIGHLIGHT_COLORS.map(([id, name]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`highlight-swatch highlight-${id}${highlightColor === id ? " active" : ""}`}
+                  onClick={() => setHighlightColor(id)}
+                  title={`${name} highlight`}
+                  aria-label={`${name} highlight`}
+                />
+              ))}
+            </div>
           </div>
           <div className="scene-panel">
             <p className="label">Background scene</p>
             <div className="scene-switch">
-              {[["midnight", "Midnight"], ["fire", "Fire"]].map(([id, label]) => (
+              {[["midnight", "Midnight"], ["fire", "Fire"], ["garden", "Garden"], ["ocean", "Ocean"]].map(([id, label]) => (
                 <button
                   key={id}
                   className={`scene-pill${bgMode === id ? " active" : ""}`}

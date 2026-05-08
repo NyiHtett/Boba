@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { resolve } from "path";
-import { copyFileSync, existsSync } from "fs";
+import { copyFileSync } from "fs";
 
 function copyExtensionFiles() {
   return {
@@ -9,12 +9,6 @@ function copyExtensionFiles() {
     closeBundle() {
       const dist = resolve(__dirname, "dist");
       copyFileSync(resolve(__dirname, "manifest.extension.json"), resolve(dist, "manifest.json"));
-
-      // Copy ExtPay.js for content_scripts (handles payment callbacks on extensionpay.com)
-      const extpayJs = resolve(__dirname, "node_modules/extpay/dist/ExtPay.js");
-      if (existsSync(extpayJs)) {
-        copyFileSync(extpayJs, resolve(dist, "ExtPay.js"));
-      }
     },
   };
 }

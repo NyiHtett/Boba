@@ -9,7 +9,6 @@ import {
   mergeNotes,
   deleteCloudNote,
 } from "../shared/firebase";
-import { checkProStatus, openPaymentPage, openTrialPage } from "../shared/paywall";
 
 function cleanTabTitle(title) {
   if (!title) return "";
@@ -54,6 +53,23 @@ function deriveContextFromTab(tab) {
   return { id: `web:${host}:${slug}`, label: title || host, url: tab.url };
 }
 
+function getAuthErrorMessage(err) {
+  const message = err?.message || String(err || "");
+  const lower = message.toLowerCase();
+
+  if (lower.includes("oauth") || lower.includes("client") || lower.includes("bad request")) {
+    return "Google sign-in setup issue. Check the extension ID in Google Cloud.";
+  }
+  if (lower.includes("user did not approve") || lower.includes("cancel")) {
+    return "Google sign-in was canceled.";
+  }
+  if (lower.includes("network") || lower.includes("fetch")) {
+    return "Network issue. Try again.";
+  }
+
+  return `Sign-in failed: ${message}`;
+}
+
 export default function App() {
   const [notesByCourse, setNotesByCourse] = useState({});
   const [currentCtx, setCurrentCtx] = useState(null);
@@ -63,8 +79,6 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState("");
-  const [isPro, setIsPro] = useState(null);
-  const [proUser, setProUser] = useState(null);
 
   useEffect(() => {
     const unsub = onAuth((u) => {
@@ -72,13 +86,6 @@ export default function App() {
       setAuthLoading(false);
     });
     return unsub;
-  }, []);
-
-  useEffect(() => {
-    checkProStatus().then(({ isPro: pro, user: u }) => {
-      setIsPro(pro);
-      setProUser(u);
-    }).catch(() => setIsPro(false));
   }, []);
 
   useEffect(() => {
@@ -115,11 +122,7 @@ export default function App() {
   const handleSignIn = useCallback(async () => {
     try {
       setSyncStatus("Signing in...");
-      const result = await signIn();
-      if (!isPro) {
-        setSyncStatus("Signed in — upgrade to sync");
-        return;
-      }
+      const result = await signIn({ chooseAccount: true });
       setSyncStatus("Syncing...");
       const cloudNotes = await pullAllNotes(result.user.uid);
       const localData = await chrome.storage.local.get([NOTES_KEY]);
@@ -131,15 +134,13 @@ export default function App() {
       setSyncStatus("Synced");
     } catch (err) {
       console.error("Sign-in failed:", err);
-      setSyncStatus("Sign-in failed");
+      setSyncStatus(getAuthErrorMessage(err));
     }
-  }, [isPro]);
+  }, []);
 
   const handleSignOut = useCallback(async () => {
     try {
       await signOutUser();
-      await chrome.storage.local.set({ [NOTES_KEY]: {} });
-      setNotesByCourse({});
       setSyncStatus("");
     } catch (err) {
       console.error("Sign-out failed:", err);
@@ -148,11 +149,6 @@ export default function App() {
 
   const handleSyncNow = useCallback(async () => {
     if (!user) return;
-    if (!isPro) {
-      if (!proUser?.trialStartedAt) openTrialPage();
-      else openPaymentPage();
-      return;
-    }
     try {
       setSyncStatus("Syncing...");
       const cloudNotes = await pullAllNotes(user.uid);
@@ -167,9 +163,9 @@ export default function App() {
       console.error("Sync failed:", err);
       setSyncStatus("Sync failed");
     }
-  }, [user, isPro, proUser]);
+  }, [user]);
 
-  const openNote = useCallback(() => {
+  const openNote = useCallback((mode = "tab") => {
     let ctx = null;
     if (selected?.startsWith("context:")) {
       const id = selected.replace(/^context:/, "");
@@ -186,7 +182,18 @@ export default function App() {
     params.set("contextId", ctx.id);
     params.set("label", ctx.label);
     if (ctx.url) params.set("sourceUrl", ctx.url);
-    chrome.tabs.create({ url: `${base}?${params}` });
+    const url = `${base}?${params}`;
+    if (mode === "popup") {
+      chrome.windows.create({
+        url,
+        type: "popup",
+        width: 820,
+        height: 760,
+        focused: true,
+      });
+      return;
+    }
+    chrome.tabs.create({ url });
   }, [selected, currentCtx, notesByCourse]);
 
   const deleteNote = useCallback(async (noteId) => {
@@ -237,18 +244,6 @@ export default function App() {
         )}
       </section>
 
-      {isPro === false && (
-        <section className="upgrade-block">
-          <p className="upgrade-text">Unlock AI Quiz &amp; Cloud Sync</p>
-          <button
-            className="btn btn-upgrade"
-            onClick={() => proUser?.trialStartedAt ? openPaymentPage() : openTrialPage()}
-          >
-            {proUser?.trialStartedAt ? "Upgrade — $4.99/mo" : "Start free 3-day trial"}
-          </button>
-        </section>
-      )}
-
       <section className="notes-block">
         <h2>Notes</h2>
         <div className="notes-picker">
@@ -279,7 +274,10 @@ export default function App() {
             );
           })}
         </div>
-        <button className="btn" onClick={openNote}>Open selected note</button>
+        <div className="open-actions">
+          <button className="btn" onClick={() => openNote("tab")}>Open page</button>
+          <button className="btn btn-secondary" onClick={() => openNote("popup")}>Floating note</button>
+        </div>
       </section>
     </div>
   );

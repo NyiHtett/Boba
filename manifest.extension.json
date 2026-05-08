@@ -3,6 +3,7 @@
   "name": "Boba",
   "version": "1.0.1",
   "description": "Aesthetic note-taking with Google sign-in cloud sync.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAo9S9glJejOt05TLBJ1pGXzoM3YmC7FqU29eBC15+mqAq9KBX4Ya4GwA+zv6axp0RWgiK6JFXlB+oOlXbu9Zj/LmBWspzoo9X7axkd1R8OkV8ha/oD8LKKU7UeXf4iXJpgnC90liQ6xf1v6DupKGtYBHrGZ832CV8SHWjkFRt+yRtnYCpb9ykntPuciWL8VtQIDsY3Q1+PDkdlzR476wkrVtx7U/1+ALheGJNOP7Yent69E996BJ5PlCJceYl0CDrQB6c8QnePRB6Z0dXGYmeO0W1MwZjXFd+UreIPCUDmQePudZAe549bPSiNz8uh72gtUkBFn7mQNITf2dfUfLkVwIDAQAB",
   "permissions": [
     "storage",
     "tabs",
@@ -29,14 +30,7 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "content_scripts": [
-    {
-      "matches": ["https://extensionpay.com/*"],
-      "js": ["ExtPay.js"],
-      "run_at": "document_start"
-    }
-  ],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'; connect-src https://*.googleapis.com https://*.firebaseio.com https://*.cloudfunctions.net https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://extensionpay.com"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src https://*.googleapis.com https://*.firebaseio.com https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com"
   }
 }

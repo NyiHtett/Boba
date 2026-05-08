@@ -54,7 +54,16 @@ const db = getFirestore(app);
  * then returns a cached token on subsequent calls. We feed that token to Firebase
  * Auth so Firestore knows who the user is.
  */
-export async function signIn() {
+export async function signIn({ chooseAccount = false } = {}) {
+  if (chooseAccount) {
+    try {
+      const { token } = await chrome.identity.getAuthToken({ interactive: false });
+      if (token) await chrome.identity.removeCachedAuthToken({ token });
+    } catch {
+      // No cached token to clear.
+    }
+    await fbSignOut(auth).catch(() => {});
+  }
   const { token } = await chrome.identity.getAuthToken({ interactive: true });
   const credential = GoogleAuthProvider.credential(null, token);
   return signInWithCredential(auth, credential);
