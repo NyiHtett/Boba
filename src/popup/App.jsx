@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { NOTES_KEY, hasMeaningfulData, deriveLabelFromId } from "../shared/storage";
+import { NOTES_KEY, PREVIEW_MODE_KEY, hasMeaningfulData, deriveLabelFromId } from "../shared/storage";
 import {
   signIn,
   signOutUser,
@@ -30,6 +30,41 @@ function makeTopicSlug(title) {
     .slice(0, 5)
     .join("-")
     .slice(0, 60);
+}
+
+function makeCustomNoteId(name) {
+  const slug = makeTopicSlug(name) || "untitled-note";
+  return `custom:${slug}:${Date.now().toString(36)}`;
+}
+
+function getPreviewText(entry) {
+  const raw = entry?.text || entry?.html || "";
+  const stripped = String(raw)
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\s+/g, " ")
+    .trim();
+  return stripped;
+}
+
+function getNotePreview(entry, fallbackLabel) {
+  const text = getPreviewText(entry);
+  const imageCount = (String(entry?.html || "").match(/<img\b/gi) || []).length;
+  const wordCount = text ? text.split(/\s+/).length : 0;
+  const updatedAt = entry?.updatedAt
+    ? new Date(entry.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })
+    : "Not saved";
+
+  return {
+    title: entry?.label || fallbackLabel,
+    meta: `${wordCount} word${wordCount === 1 ? "" : "s"} · ${imageCount} image${imageCount === 1 ? "" : "s"} · ${updatedAt}`,
+    snippet: text || (imageCount ? "Image-only note." : "No saved content yet."),
+  };
 }
 
 function deriveContextFromTab(tab) {
@@ -74,6 +109,9 @@ export default function App() {
   const [notesByCourse, setNotesByCourse] = useState({});
   const [currentCtx, setCurrentCtx] = useState(null);
   const [selected, setSelected] = useState(null);
+  const [newNoteName, setNewNoteName] = useState("");
+  const [previewedNoteId, setPreviewedNoteId] = useState(null);
+  const [previewMode, setPreviewMode] = useState(true);
 
   // ── Auth state ──
   const [user, setUser] = useState(null);
@@ -108,7 +146,20 @@ export default function App() {
     return () => chrome.storage.onChanged.removeListener(listener);
   }, []);
 
+  useEffect(() => {
+    chrome.storage.local.get([PREVIEW_MODE_KEY]).then((data) => {
+      setPreviewMode(data[PREVIEW_MODE_KEY] !== false);
+    });
+  }, []);
+
   const options = buildOptions(notesByCourse, currentCtx);
+  const previewEntry = previewedNoteId ? notesByCourse[previewedNoteId] : null;
+  const previewOption = previewedNoteId
+    ? options.find((o) => o.value === `context:${previewedNoteId}`)
+    : null;
+  const notePreview = previewMode && previewedNoteId
+    ? getNotePreview(previewEntry, previewOption?.label || deriveLabelFromId(previewedNoteId))
+    : null;
 
   useEffect(() => {
     if (selected && options.some((o) => o.value === selected)) return;
@@ -165,7 +216,7 @@ export default function App() {
     }
   }, [user]);
 
-  const openNote = useCallback((mode = "tab") => {
+  const openNote = useCallback(async (mode = "tab") => {
     let ctx = null;
     if (selected?.startsWith("context:")) {
       const id = selected.replace(/^context:/, "");
@@ -183,18 +234,33 @@ export default function App() {
     params.set("label", ctx.label);
     if (ctx.url) params.set("sourceUrl", ctx.url);
     const url = `${base}?${params}`;
-    if (mode === "popup") {
-      chrome.windows.create({
-        url,
-        type: "popup",
-        width: 820,
-        height: 760,
-        focused: true,
-      });
+    if (mode === "side") {
+      await chrome.sidePanel.setOptions({ path: `src/notes/index.html?${params}`, enabled: true });
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      await chrome.sidePanel.open({ windowId: tab.windowId });
       return;
     }
     chrome.tabs.create({ url });
   }, [selected, currentCtx, notesByCourse]);
+
+  const openCustomNote = useCallback(async (mode = "tab") => {
+    const label = newNoteName.trim() || "Untitled note";
+    const ctx = { id: makeCustomNoteId(label), label, url: null };
+    setNewNoteName("");
+
+    const base = chrome.runtime.getURL("src/notes/index.html");
+    const params = new URLSearchParams();
+    params.set("contextId", ctx.id);
+    params.set("label", ctx.label);
+    const url = `${base}?${params}`;
+    if (mode === "side") {
+      await chrome.sidePanel.setOptions({ path: `src/notes/index.html?${params}`, enabled: true });
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      await chrome.sidePanel.open({ windowId: tab.windowId });
+      return;
+    }
+    chrome.tabs.create({ url });
+  }, [newNoteName]);
 
   const deleteNote = useCallback(async (noteId) => {
     const entry = notesByCourse[noteId];
@@ -203,11 +269,19 @@ export default function App() {
     const next = { ...notesByCourse };
     delete next[noteId];
     setNotesByCourse(next);
+    if (previewedNoteId === noteId) setPreviewedNoteId(null);
     await chrome.storage.local.set({ [NOTES_KEY]: next });
     if (user) {
       try { await deleteCloudNote(user.uid, noteId); } catch { /* local delete still succeeded */ }
     }
-  }, [notesByCourse, user]);
+  }, [notesByCourse, previewedNoteId, user]);
+
+  const togglePreviewMode = useCallback(async () => {
+    const next = !previewMode;
+    setPreviewMode(next);
+    if (!next) setPreviewedNoteId(null);
+    await chrome.storage.local.set({ [PREVIEW_MODE_KEY]: next });
+  }, [previewMode]);
 
   return (
     <div className="wrap">
@@ -245,7 +319,34 @@ export default function App() {
       </section>
 
       <section className="notes-block">
-        <h2>Notes</h2>
+        <div className="notes-heading">
+          <h2>Notes</h2>
+          <button
+            type="button"
+            className={`preview-toggle${previewMode ? " active" : ""}`}
+            onClick={togglePreviewMode}
+            aria-pressed={previewMode}
+            title={previewMode ? "Turn previews off" : "Turn previews on"}
+          >
+            Preview {previewMode ? "on" : "off"}
+          </button>
+        </div>
+        <form
+          className="new-note-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            openCustomNote("tab");
+          }}
+        >
+          <input
+            className="new-note-input"
+            value={newNoteName}
+            onChange={(e) => setNewNoteName(e.target.value)}
+            placeholder="New note name"
+            aria-label="New note name"
+          />
+          <button className="btn btn-new-note" type="submit">Create</button>
+        </form>
         <div className="notes-picker">
           {options.length === 0 && <div className="empty">No notes yet.</div>}
           {options.map((opt) => {
@@ -258,6 +359,10 @@ export default function App() {
                   className={`notes-row-main${opt.value === selected ? " active" : ""}`}
                   title={opt.label}
                   onClick={() => setSelected(opt.value)}
+                  onMouseEnter={() => setPreviewedNoteId(noteId)}
+                  onMouseLeave={() => setPreviewedNoteId(null)}
+                  onFocus={() => setPreviewedNoteId(noteId)}
+                  onBlur={() => setPreviewedNoteId(null)}
                 >
                   {opt.label}
                 </button>
@@ -274,9 +379,16 @@ export default function App() {
             );
           })}
         </div>
+        {notePreview && (
+          <div className="note-preview-popover" aria-live="polite">
+            <p className="preview-title">{notePreview.title}</p>
+            <p className="preview-meta">{notePreview.meta}</p>
+            <p className="preview-snippet">{notePreview.snippet}</p>
+          </div>
+        )}
         <div className="open-actions">
           <button className="btn" onClick={() => openNote("tab")}>Open page</button>
-          <button className="btn btn-secondary" onClick={() => openNote("popup")}>Floating note</button>
+          <button className="btn btn-secondary" onClick={() => openNote("side")}>Side panel</button>
         </div>
       </section>
     </div>

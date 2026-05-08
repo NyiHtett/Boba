@@ -94,6 +94,7 @@ h1 {
   padding: 10px;
   display: grid;
   gap: 8px;
+  position: relative;
 }
 
 h2 {
@@ -104,12 +105,74 @@ h2 {
   color: var(--neo);
 }
 
+.notes-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.preview-toggle {
+  border: 2px solid var(--neo);
+  border-radius: 999px;
+  box-shadow: 2px 2px 0 var(--warm-shadow);
+  background: #ffffff;
+  color: var(--ink);
+  font-family: "Nunito", sans-serif;
+  font-size: 10px;
+  font-weight: 900;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.preview-toggle.active {
+  background: var(--chip);
+  border-color: var(--honey);
+}
+
+.preview-toggle:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--warm-shadow);
+}
+
 .notes-picker {
   display: grid;
   gap: 8px;
   max-height: 190px;
   overflow: auto;
   padding: 2px;
+}
+
+.new-note-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.new-note-input {
+  min-width: 0;
+  border: 3px solid var(--neo);
+  border-radius: 12px;
+  box-shadow: 3px 3px 0 var(--warm-shadow);
+  background: #ffffff;
+  color: var(--ink);
+  font-family: "Nunito", sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  padding: 8px 10px;
+  outline: none;
+}
+
+.new-note-input::placeholder {
+  color: var(--muted);
+}
+
+.new-note-input:focus {
+  border-color: var(--accent);
+}
+
+.btn-new-note {
+  padding-inline: 12px;
 }
 
 .notes-row {
@@ -204,6 +267,56 @@ h2 {
   font-size: 11px;
   font-weight: 700;
   font-style: italic;
+}
+
+.note-preview-popover {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 58px;
+  z-index: 10;
+  display: grid;
+  gap: 3px;
+  max-height: 116px;
+  padding: 10px 12px;
+  border: 3px solid var(--neo);
+  border-radius: 14px;
+  box-shadow: 4px 4px 0 var(--warm-shadow);
+  background: #FFF9E6;
+  color: var(--ink);
+  pointer-events: none;
+}
+
+.preview-title,
+.preview-meta,
+.preview-snippet {
+  margin: 0;
+}
+
+.preview-title {
+  font-family: "Fredoka", sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.preview-meta {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.preview-snippet {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 /* ── Auth card ── */

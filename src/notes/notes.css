@@ -833,8 +833,8 @@ aside {
 
 .section-tools {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .section-tool-btn {
@@ -848,6 +848,7 @@ aside {
   align-items: center;
   gap: 2px;
   background: var(--split-btn-bg);
+  overflow: hidden;
 }
 
 .tool-icon {
@@ -857,10 +858,28 @@ aside {
 
 .tool-label {
   font-family: "Fredoka", sans-serif;
-  font-size: 10px;
+  max-width: 100%;
+  font-size: 9px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+body.surface-light .section-tool-btn {
+  color: var(--ink);
+}
+
+body.surface-light .tool-label {
+  color: var(--ink);
+}
+
+body.surface-light .section-tool-btn:disabled {
+  color: var(--muted);
+}
+
+body.surface-light .section-tool-btn:disabled .tool-label {
   color: var(--muted);
 }
 

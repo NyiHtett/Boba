@@ -1,6 +1,7 @@
 export const NOTES_KEY = "notesByCourse";
 export const BG_MODE_KEY = "notesBackgroundMode";
 export const SURFACE_MODE_KEY = "notesSurfaceMode";
+export const PREVIEW_MODE_KEY = "notesPreviewMode";
 
 export const DEFAULT_BG_MODE = "midnight";
 export const BG_MODES = ["midnight", "fire", "garden", "ocean"];
@@ -34,6 +35,13 @@ export function deriveLabelFromId(contextId) {
     return slug
       ? slug.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
       : host;
+  }
+  if (contextId.startsWith("custom:")) {
+    const parts = contextId.split(":");
+    const slug = parts[1] || "";
+    return slug
+      ? slug.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
+      : "Untitled note";
   }
   return "Saved note";
 }
