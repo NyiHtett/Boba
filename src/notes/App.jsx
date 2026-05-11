@@ -608,6 +608,24 @@ export default function App() {
     queueAutosave(600);
   }, [queueAutosave, tryAutoMath]);
 
+  const insertBreakAfterTitleChip = useCallback((range) => {
+    const container = range.startContainer;
+    const chip = (container.nodeType === Node.ELEMENT_NODE ? container : container.parentElement)?.closest?.(".note-title-chip");
+    if (!chip || !editorRef.current?.contains(chip)) return false;
+
+    const br = document.createElement("br");
+    chip.after(br);
+
+    const nextRange = document.createRange();
+    nextRange.setStartAfter(br);
+    nextRange.collapse(true);
+
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(nextRange);
+    return true;
+  }, []);
+
   const handleKeyDown = useCallback((e) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z" && !e.shiftKey) {
       e.preventDefault();
@@ -617,11 +635,15 @@ export default function App() {
     if (e.key !== "Enter") return;
     e.preventDefault();
     pushUndoSnapshot();
+    const sel = window.getSelection();
+    const range = sel?.rangeCount ? sel.getRangeAt(0) : null;
+    if (range && range.collapsed && editorRef.current?.contains(range.commonAncestorContainer) && insertBreakAfterTitleChip(range)) {
+      handleInput();
+      return;
+    }
     if (document.queryCommandSupported?.("insertLineBreak")) {
       document.execCommand("insertLineBreak");
     } else {
-      const sel = window.getSelection();
-      const range = sel?.rangeCount ? sel.getRangeAt(0) : null;
       if (!range || !editorRef.current.contains(range.commonAncestorContainer)) return;
       const br = document.createElement("br");
       range.deleteContents(); range.insertNode(br);
@@ -629,7 +651,7 @@ export default function App() {
       sel.removeAllRanges(); sel.addRange(range);
     }
     handleInput();
-  }, [handleInput, pushUndoSnapshot, undoLastChange]);
+  }, [handleInput, insertBreakAfterTitleChip, pushUndoSnapshot, undoLastChange]);
 
   const handleBlur = useCallback(() => {
     const sel = window.getSelection();
